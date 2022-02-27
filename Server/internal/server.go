@@ -14,6 +14,8 @@ const (
 
 const maxLoggedDays int = 7
 
+//const bufferSize int = 512
+
 type DailySensorsData map[int]*sensorData
 type PeriodicSensorsData map[string]*DailySensorsData
 
@@ -31,7 +33,14 @@ type accumulatedMeasurements struct {
 	numOfMeasurements      int
 }
 
+type Server struct {
+	cmds                chan command
+	sensorsMeasurements PeriodicSensorsData
+	//sb                  strings.Builder
+}
+
 func (s *Server) Run() {
+	//s.sb.Grow(bufferSize)
 	go func() {
 		for cmd := range s.cmds {
 			cmd.execute(s)
@@ -39,17 +48,16 @@ func (s *Server) Run() {
 	}()
 }
 
-type Server struct {
-	cmds                chan command
-	sensorsMeasurements PeriodicSensorsData
-}
-
 func NewServer() *Server {
 	sensorsMeasurements := make(PeriodicSensorsData)
 	return &Server{make(chan command), sensorsMeasurements}
+	//return &Server{make(chan command), sensorsMeasurements, strings.Builder{}}
 }
 
 func (s *Server) Get(w http.ResponseWriter, req *http.Request) {
+	//for test only, remove later
+	//time.Sleep(3 * time.Second)
+
 	period := req.URL.Query().Get("period")
 	var validPeriod bool = (period == SingleDay || period == Week)
 	if !validPeriod {
@@ -169,9 +177,17 @@ func (s *Server) calculateAccumulatedMeasurements() map[int]*accumulatedMeasurem
 }
 
 func (s *Server) serializeAccumulatedMeasurements() string {
+	//func (s *Server) serializeAccumulatedMeasurements() {
 	var currentSensorData string
 	var numberOfAverages float32 = 0.0
 	var sumOfAllAverages float32 = 0.0
+	//var buffer bytes.Buffer
+	//var buffer strings.Builder
+	//buffer.Grow(512)
+	//buffer.WriteString("\nAccumulated data:\n")
+	//buffer.WriteString("\tid\t\tmin\t\tmax\t\taverage\n")
+	//s.sb.WriteString("\nAccumulated data:\n")
+	//s.sb.WriteString("\tid\t\tmin\t\tmax\t\taverage\n")
 	result := "\nAccumulated data:\n"
 	result += "\tid\t\tmin\t\tmax\t\taverage\n"
 	accumulatedData := s.calculateAccumulatedMeasurements()
@@ -179,31 +195,48 @@ func (s *Server) serializeAccumulatedMeasurements() string {
 		averageOfCurrentSensor := float32(totalMeasurementData.totalOfAllMeasurements) / float32(totalMeasurementData.numOfMeasurements)
 		numberOfAverages++
 		sumOfAllAverages += averageOfCurrentSensor
+		//fmt.Fprintf(&buffer, "\t%d\t\t%d\t\t%d\t\t%f\n", sensorId, totalMeasurementData.minimum, totalMeasurementData.maximum, averageOfCurrentSensor)
+		//fmt.Fprintf(&(s.sb), "\t%d\t\t%d\t\t%d\t\t%f\n", sensorId, totalMeasurementData.minimum, totalMeasurementData.maximum, averageOfCurrentSensor)
 		currentSensorData = fmt.Sprintf("\t%d\t\t%d\t\t%d\t\t%f\n", sensorId, totalMeasurementData.minimum, totalMeasurementData.maximum, averageOfCurrentSensor)
 		result += currentSensorData
 	}
 	averageMeasurement := sumOfAllAverages / numberOfAverages
+	//fmt.Fprintf(&buffer, "average measurement = %f", averageMeasurement)
+	//fmt.Fprintf(&(s.sb), "average measurement = %f", averageMeasurement)
 	averageOfAverages := fmt.Sprintf("average measurement = %f", averageMeasurement)
 	result += averageOfAverages
 
+	//return buffer.String()
+	// nothing to return - everything is in s.sb !!
 	return result
 }
 
 func (s *Server) serializeResponse(data PeriodicSensorsData, duration string) string {
+	//var buffer bytes.Buffer
+	//var buffer strings.Builder
 	var result string = ""
 	var currentSensorData string
+	//s.sb.Reset()
 	numOfDocumentedDays := len(data)
 	for i := 0; i < numOfDocumentedDays; i++ {
 		dateToScan := time.Now().AddDate(0, 0, -i)
 		currentDate := DateToString(dateToScan)
 		if _, ok := data[currentDate]; ok {
+			//buffer.WriteString(currentDate)
+			//buffer.WriteString(":\n")
+			//s.sb.WriteString(currentDate)
+			//s.sb.WriteString(":\n")
 			result = currentDate + ":\n"
 			printedTitles := false
 			for sensorId, sensorData := range *(data)[currentDate] {
 				if !printedTitles {
+					//buffer.WriteString("\tid\t\tmin\t\tmax\t\taverage\n")
+					//s.sb.WriteString("\tid\t\tmin\t\tmax\t\taverage\n")
 					result += "\tid\t\tmin\t\tmax\t\taverage\n"
 					printedTitles = true
 				}
+				//fmt.Fprintf(&buffer, "\t%d\t\t%d\t\t%d\t\t%f\n", sensorId, sensorData.minimum, sensorData.maximum, sensorData.average)
+				//fmt.Fprintf(&(s.sb), "\t%d\t\t%d\t\t%d\t\t%f\n", sensorId, sensorData.minimum, sensorData.maximum, sensorData.average)
 				currentSensorData = fmt.Sprintf("\t%d\t\t%d\t\t%d\t\t%f\n", sensorId, sensorData.minimum, sensorData.maximum, sensorData.average)
 				result += currentSensorData
 			}
@@ -211,8 +244,12 @@ func (s *Server) serializeResponse(data PeriodicSensorsData, duration string) st
 	}
 
 	if duration == Week {
+		//buffer.WriteString(s.serializeAccumulatedMeasurements())
+		//s.serializeAccumulatedMeasurements()
 		result += s.serializeAccumulatedMeasurements()
 	}
 
+	//return buffer.String()
+	//return s.sb.String()
 	return result
 }
