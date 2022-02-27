@@ -49,7 +49,7 @@ func NewSensorsServer() *SensorsSrv {
 
 func (s *SensorsSrv) Run() {
 	s.rdb = redis.NewClient(&redis.Options{
-		Addr:     "0.0.0.0:6379",
+		Addr:     "172.20.0.1:6379",
 		Password: "",
 		DB:       0,
 	})
